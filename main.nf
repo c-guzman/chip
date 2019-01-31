@@ -248,7 +248,7 @@ process trim_galore {
     script:
     if (params.singleEnd) {
         """
-        trim_galore ---fastqc --gzip $reads
+        trim_galore --fastqc --gzip $reads
         """
     } else {
         """
