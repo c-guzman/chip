@@ -8,3 +8,6 @@ dependencies:
   - anaconda::openjdk=8.0.152
   - bioconda::fastqc=0.11.8
   - bioconda::multiqc=1.6
+  - conda-forge::r-data.table=1.11.4
+  - conda-forge::r-gplots=3.0.1
+  - conda-forge::r-markdown=0.8
