@@ -266,7 +266,7 @@ process multiqc {
     file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from fastqc_results.collect().ifEmpty([])
-    file ('trimgalore/*') from trimmed_results.collect().ifEmpty([])
+    file ('trim_galore/*') from trimmed_results.collect().ifEmpty([])
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
