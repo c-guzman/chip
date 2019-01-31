@@ -140,6 +140,7 @@ summary['Run Name']     = custom_runName ?: workflow.runName
 // TODO nf-core: Report custom parameters here
 summary['Reads']        = params.reads
 summary['Fasta Ref']    = params.fasta
+summary['Genome']       = params.genome
 summary['Data Type']    = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Max Memory']   = params.max_memory
 summary['Max CPUs']     = params.max_cpus
