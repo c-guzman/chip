@@ -198,6 +198,7 @@ process get_software_versions {
     echo $workflow.nextflow.version > v_nextflow.txt
     fastqc --version > v_fastqc.txt
     multiqc --version > v_multiqc.txt
+    trim_galore --version > v_trim_galore.txt
     scrape_software_versions.py > software_versions_mqc.yaml
     """
 }
@@ -226,7 +227,7 @@ process fastqc {
 
 /*
  * STEP 2 - Trim Galore!
- * /
+ */
 process trim_galore {
     tag "$name"
     publishDr "${params.outdir}/trim_galore", mode: 'copy',
@@ -266,7 +267,7 @@ process multiqc {
     file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from fastqc_results.collect().ifEmpty([])
-    file ('trimgalore/*') from trimgalore_results.collect().ifEmpty([])
+    file ('trimgalore/*') from trimgalore_results.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
