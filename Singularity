@@ -3,7 +3,7 @@ Bootstrap:docker
 
 %labels
     MAINTAINER Carlos Guzman
-    DESCRIPTION Singularity image containing all requirements for the nf-core/chip pipeline
+    DESCRIPTION Singularity image containing all requirements for the nf-core/chip heinzlab pipeline
     VERSION 1.0dev
 
 %environment
