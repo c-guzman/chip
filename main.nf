@@ -5,7 +5,7 @@
 ========================================================================================
  nf-core/chip Analysis Pipeline.
  #### Homepage / Documentation
- https://github.com/nf-core/chip
+ https://github.com/c-guzman/chip
 ----------------------------------------------------------------------------------------
 */
 
@@ -223,10 +223,40 @@ process fastqc {
     """
 }
 
+/*
+ * STEP 2 - Trim Galore!
+ * /
+process trim_galore {
+    tag "$name"
+    publishDr "${params.outdir}/trim_galore", mode: 'copy',
+        saveAs: {filename ->
+            if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
+            else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
+            else params.saveTrimmed ? filename : null
+        }
 
+    input:
+    set val(name), file(reads) from read_files_trimming
+
+    output:
+    file "*.{fastq,fq}.gz" into trimmed_reads
+    file '*trimming_report.txt' into trimmed_results
+    file "*_fastqc.{zip,html}" into trimmed_fastqc_reports
+
+    script:
+    if (params.singleEnd) {
+        """
+        trim_galore ---fastqc --gzip $reads
+        """
+    } else {
+        """
+        trim_galore --paired --fastqc --gzip $reads
+        """
+    }
+}
 
 /*
- * STEP 2 - MultiQC
+ * STEP 3 - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
@@ -235,6 +265,7 @@ process multiqc {
     file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from fastqc_results.collect().ifEmpty([])
+    file ('trimgalore/*') from trimmed_results.collect().ifEmpty([])
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
@@ -254,7 +285,7 @@ process multiqc {
 
 
 /*
- * STEP 3 - Output Description HTML
+ * STEP 4 - Output Description HTML
  */
 process output_documentation {
     publishDir "${params.outdir}/Documentation", mode: 'copy'
