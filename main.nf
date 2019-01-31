@@ -241,8 +241,8 @@ process trim_galore {
 
     output:
     file "*.{fastq,fq}.gz" into trimmed_reads
-    file '*trimming_report.txt' into trimmed_results
-    file "*_fastqc.{zip,html}" into trimmed_fastqc_reports
+    file '*trimming_report.txt' into trimgalore_results
+    file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
 
     script:
     if (params.singleEnd) {
@@ -266,7 +266,7 @@ process multiqc {
     file multiqc_config from ch_multiqc_config
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from fastqc_results.collect().ifEmpty([])
-    file ('trim_galore/*') from trimmed_results.collect().ifEmpty([])
+    file ('trimgalore/*') from trimgalore_results.collect().ifEmpty([])
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
