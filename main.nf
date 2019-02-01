@@ -234,7 +234,7 @@ process trim_galore {
         saveAs: {filename ->
             if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
             else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
-            else null
+            else filename
         }
 
     input:
