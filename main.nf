@@ -69,6 +69,8 @@ if ( params.fasta ){
     fasta = file(params.fasta)
     if( !fasta.exists() ) exit 1, "Fasta file not found: ${params.fasta}"
 }
+
+bt2_index = params.genome ? params.genomes[ params.genome ].bt2 ?: false : false
 //
 // NOTE - THIS IS NOT USED IN THIS PIPELINE, EXAMPLE ONLY
 // If you want to use the above in a process, define the following:
@@ -199,6 +201,8 @@ process get_software_versions {
     fastqc --version > v_fastqc.txt
     multiqc --version > v_multiqc.txt
     trim_galore --version > v_trim_galore.txt
+    bowtie2 --version > v_bowtie2.txt
+    samtools --version > v_samtools.txt
     scrape_software_versions.py > software_versions_mqc.yaml
     """
 }
@@ -257,8 +261,45 @@ process trim_galore {
     }
 }
 
+process bt2_mapping {
+    tag "$prefix"
+    publishDir "${params.outdir}/bt2_mapping", mode: 'copy'
+
+    input:
+    file reads from trimmed_reads
+    file bt2_index from bt2_index
+
+    output:
+    file '*.sorted.dedup.bam' into bt2_bams
+    file '*.sorted.dedup.bam.bai' into bt2_indexes
+
+    script:
+    prefix = reads.toString() - '_trimmed.fq.gz'
+    if (params.singleEnd) {
+        """
+        bowtie2 -q --very-sensitive-local -N 1 -p ${task.cpus} \\
+        -x ${bt2_index}/genome $reads | samtools sort -n -O bam \\
+        -T ${prefix} -@ ${task.cpus} - | samtools fixmate -m - - | \\
+        samtools sort - -@ ${task.cpus} | samtools markdup \\
+        - ${prefix}.sorted.dedup.bam
+
+        samtools index ${prefix}.sorted.dedup.bam
+        """
+    } else {
+        """
+        bowtie2 -q --very-sensitive-local -N 1 -p ${task.cpus} \\
+        -x ${bt2_index}/genome -1 ${reads[0]} -2 ${reads[1]} | samtools \\
+        sort -n -O bam -T ${prefix} -@ ${task.cpus} - | samtools \\
+        -m - - | samtools sort - -@ ${task.cpus} | samtools markdup \\
+        - ${prefix}.sorted.dedup.bam
+
+        samtools index ${prefix}.sorted.dedup.bam
+        """
+    }
+}
+
 /*
- * STEP 3 - MultiQC
+ * STEP - MultiQC
  */
 process multiqc {
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
@@ -287,7 +328,7 @@ process multiqc {
 
 
 /*
- * STEP 4 - Output Description HTML
+ * STEP - Output Description HTML
  */
 process output_documentation {
     publishDir "${params.outdir}/Documentation", mode: 'copy'
