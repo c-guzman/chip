@@ -3,7 +3,7 @@
 ========================================================================================
                          nf-core/chip
 ========================================================================================
- nf-core/chip Analysis Pipeline.
+ c-guzman/chip Analysis Pipeline.
  #### Homepage / Documentation
  https://github.com/c-guzman/chip
 ----------------------------------------------------------------------------------------
@@ -20,14 +20,14 @@ def helpMessage() {
         | \\| |       \\__, \\__/ |  \\ |___     \\`-._,-`-,
                                               `._,._,\'
 
-     nf-core/chip v${workflow.manifest.version}
+     c-guzman/chip v${workflow.manifest.version}
     =======================================================
 
     Usage:
 
     The typical command for running the pipeline is as follows:
 
-    nextflow run nf-core/chip --reads '*_R{1,2}.fastq.gz' -profile docker
+    nextflow run c-guzman/chip --reads '*_R{1,2}.fastq.gz' -profile singularity
 
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
@@ -40,6 +40,7 @@ def helpMessage() {
 
     References                      If not specified in the configuration file or you wish to overwrite any of the references.
       --fasta                       Path to Fasta reference
+      --bt2_index                   Path to Bowtie2 index
 
     Other options:
       --outdir                      The output directory where the results will be saved
@@ -64,13 +65,18 @@ if (params.help){
 
 // TODO nf-core: Add any reference files that are needed
 // Configurable reference genomes
-fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
+params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
 if ( params.fasta ){
     fasta = file(params.fasta)
     if( !fasta.exists() ) exit 1, "Fasta file not found: ${params.fasta}"
 }
 
-bt2_index = params.genome ? params.genomes[ params.genome ].bt2 ?: false : false
+params.bt2_index = params.genome ? params.genomes[ params.genome ].bt2 ?: false : false
+if ( params.bt2_index ){
+    bt2_index = Channel
+        .fromPath(params.bt2_index)
+        .ifEmpty { exit 1, "Bowtie2 index not found}" }
+}
 //
 // NOTE - THIS IS NOT USED IN THIS PIPELINE, EXAMPLE ONLY
 // If you want to use the above in a process, define the following:
@@ -136,13 +142,14 @@ log.info """=======================================================
 nf-core/chip v${workflow.manifest.version}"
 ======================================================="""
 def summary = [:]
-summary['Pipeline Name']  = 'nf-core/chip'
+summary['Pipeline Name']  = 'c-guzman/chip'
 summary['Pipeline Version'] = workflow.manifest.version
 summary['Run Name']     = custom_runName ?: workflow.runName
 // TODO nf-core: Report custom parameters here
 summary['Reads']        = params.reads
 summary['Fasta Ref']    = params.fasta
 summary['Genome']       = params.genome
+summary['Bowtie2 Index'] = params.bt2_index
 summary['Data Type']    = params.singleEnd ? 'Single-End' : 'Paired-End'
 summary['Max Memory']   = params.max_memory
 summary['Max CPUs']     = params.max_cpus
@@ -263,24 +270,29 @@ process trim_galore {
 
 process bt2_mapping {
     tag "$prefix"
-    publishDir "${params.outdir}/bt2_mapping", mode: 'copy'
+    publishDir "${params.outdir}/bt2_mapping", mode: 'copy',
+        saveAs: {filename ->
+            if (filename.indexOf(".bt2.log") > 0) "logs/$filename"
+            else filename
+        }
 
     input:
     file reads from trimmed_reads
-    file bt2_index from bt2_index
+    file bt2_index from bt2_index.collect()
 
     output:
     file '*.sorted.dedup.bam' into bt2_bams
     file '*.sorted.dedup.bam.bai' into bt2_indexes
+    file '*.bt2.log' into mapping_results
 
     script:
-    prefix = reads.toString() - '_trimmed.fq.gz'
+    prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
     if (params.singleEnd) {
         """
         bowtie2 -q --very-sensitive-local -N 1 -p ${task.cpus} \\
-        -x ${bt2_index}/genome $reads | samtools sort -n -O bam \\
+        -x ${bt2_index}/genome $reads 2> ${prefix}.bt2.log | samtools sort -n -O bam \\
         -T ${prefix} -@ ${task.cpus} - | samtools fixmate -m - - | \\
-        samtools sort - -@ ${task.cpus} | samtools markdup \\
+        samtools sort -@ ${task.cpus} - | samtools markdup \\
         - ${prefix}.sorted.dedup.bam
 
         samtools index ${prefix}.sorted.dedup.bam
@@ -288,9 +300,9 @@ process bt2_mapping {
     } else {
         """
         bowtie2 -q --very-sensitive-local -N 1 -p ${task.cpus} \\
-        -x ${bt2_index}/genome -1 ${reads[0]} -2 ${reads[1]} | samtools \\
-        sort -n -O bam -T ${prefix} -@ ${task.cpus} - | samtools \\
-        -m - - | samtools sort - -@ ${task.cpus} | samtools markdup \\
+        -x ${bt2_index}/genome -1 ${reads[0]} -2 ${reads[1]} 2> ${prefix}.bt2.log | samtools \\
+        sort -n -O bam -T ${prefix} -@ ${task.cpus} - | samtools fixmate \\
+        -m - - | samtools sort -@ ${task.cpus} - | samtools markdup \\
         - ${prefix}.sorted.dedup.bam
 
         samtools index ${prefix}.sorted.dedup.bam
@@ -309,6 +321,7 @@ process multiqc {
     // TODO nf-core: Add in log files from your new processes for MultiQC to find!
     file ('fastqc/*') from fastqc_results.collect().ifEmpty([])
     file ('trimgalore/*') from trimgalore_results.collect()
+    file ('mapping/*') from mapping_results.collect()
     file ('software_versions/*') from software_versions_yaml
     file workflow_summary from create_workflow_summary(summary)
 
