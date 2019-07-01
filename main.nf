@@ -40,7 +40,7 @@ def helpMessage() {
 
     References                      If not specified in the configuration file or you wish to overwrite any of the references.
       --fasta                       Path to Fasta reference
-      --bt2_index                   Path to Bowtie2 index
+      --bt2_index                   Path to Bowtie2 index directory
 
     Other options:
       --outdir                      The output directory where the results will be saved
